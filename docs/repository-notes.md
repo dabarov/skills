@@ -1,6 +1,6 @@
 # Repository notes
 
-This collection starts with one workflow I use. The repository gives visitors enough context to try it, inspect it, and suggest a concrete improvement.
+This collection records workflows I use. The repository gives visitors enough context to try them, inspect them, and suggest a concrete improvement.
 
 ## Presentation
 
@@ -25,6 +25,10 @@ The [official Codex guide](https://learn.chatgpt.com/docs/build-skills) lists `~
 The format is portable. Tool capabilities still depend on the agent and its connected provider. A Figma workflow requires writable access and the provider's own setup instructions. A placed PNG remains flattened in Figma even when its source layout is editable.
 
 The first skill's publishing cap is 10 slides including the hook and call to action. Its 1080 × 1350 canvas, 64 px safe margin, and 32 px Figma gap are workflow defaults. They can change with a brief; they are not claims about platform requirements.
+
+The meme skill includes the original FFmpeg and vector-engagement helpers, with a locked Node dependency. Generated motion caches are built locally rather than stored as duplicate videos. The optional cinema texture changes footage quality while preserving geometry. Face-led covers and one-paragraph Instagram copy reflect corrections from actual use.
+
+Personal media, private conversation logs, third-party movie stills, and project watermarks are not published. A separate brand profile explains how to supply the approved mark.
 
 The repository distributes original instructions and illustrative artwork under MIT. Referenced third-party visual libraries and brand marks keep their own licensing terms and are not bundled.
 

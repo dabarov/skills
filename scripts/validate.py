@@ -6,6 +6,7 @@ parser or a substitute for trying a skill on a representative task.
 """
 
 import argparse
+import ast
 import json
 import re
 import struct
@@ -13,6 +14,12 @@ import sys
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 from xml.etree import ElementTree
+
+RUNTIME_DIRECTORIES = {".git", "node_modules", "generated", ".venv", "__pycache__"}
+
+
+def is_runtime_file(path, root):
+    return bool(RUNTIME_DIRECTORIES.intersection(path.relative_to(root).parts))
 
 
 def validate(root):
@@ -61,7 +68,7 @@ def validate(root):
 
     # Check file links only. Public URLs and intra-page anchors are not fetched.
     for path in sorted(root.rglob("*.md")):
-        if ".git" in path.relative_to(root).parts:
+        if is_runtime_file(path, root):
             continue
         text = path.read_text(encoding="utf-8")
         if "[TODO:" in text:
@@ -84,6 +91,28 @@ def validate(root):
                 fail(path, f"local link escapes the repository: {target}")
             elif not linked.exists():
                 fail(path, f"missing local link: {target}")
+
+    for path in sorted(root.rglob("*.py")):
+        if is_runtime_file(path, root):
+            continue
+        try:
+            ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        except SyntaxError as exc:
+            fail(path, f"invalid Python syntax: {exc}")
+
+    for path in sorted((root / "skills").glob("*/*/package.json")):
+        lock = path.with_name("package-lock.json")
+        try:
+            package = json.loads(path.read_text(encoding="utf-8"))
+            if not lock.is_file():
+                fail(path, "missing lockfile for npm ci")
+                continue
+            locked = json.loads(lock.read_text(encoding="utf-8"))
+            entry = locked.get("packages", {}).get("", {})
+            if entry.get("dependencies", {}) != package.get("dependencies", {}):
+                fail(lock, "root dependencies differ from package.json")
+        except (ValueError, TypeError, AttributeError) as exc:
+            fail(path, f"invalid package metadata: {exc}")
 
     catalog = root / "skills.sh.json"
     if not catalog.exists():
@@ -137,7 +166,7 @@ def main():
         print("Validation failed:")
         print("\n".join(f"- {error}" for error in errors))
         return 1
-    print(f"Validated {len(skills)} skill package(s), local links, catalog, and example artwork.")
+    print(f"Validated {len(skills)} skill package(s), local links, dependencies, Python syntax, catalog, and example artwork.")
     return 0
 
 

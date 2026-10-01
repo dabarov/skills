@@ -4,15 +4,18 @@
 
 I keep the workflows I return to here. Each skill turns a set of decisions, corrections, and working habits into instructions an agent can use again.
 
-The collection starts with social carousels: choosing an idea, writing the slides, keeping the design consistent, and putting the result in Figma.
+The collection covers social carousels and meme Reels, from choosing the idea to checking the finished post.
 
 ## Install
 
 ```sh
 npx skills@latest add dabarov/skills --skill figma-social-carousel
+npx skills@latest add dabarov/skills --skill build-meme-reel
 ```
 
 Figma delivery requires a connected tool that can write to Figma. The skill supplies the workflow; it does not install that connection. See the [provider guidance](skills/socials/figma-social-carousel/references/figma.md).
+
+Meme Reels use FFmpeg, Python, and a small Node dependency for engagement graphics. Supply your approved animated watermark. Image generation needs the agent's image tool. See the [renderer setup](skills/socials/build-meme-reel/references/rendering.md).
 
 The installer lets you choose the agent and installation scope. To see the collection first:
 
@@ -25,6 +28,7 @@ npx skills@latest add dabarov/skills --list
 | Skill | What it does |
 | --- | --- |
 | [Figma Social Carousel](skills/socials/figma-social-carousel/SKILL.md) | Research and select an idea, write up to 10 slides, use one visual system, review the result, and deliver it to Figma. |
+| [Build Meme Reel](skills/socials/build-meme-reel/SKILL.md) | Cut the joke, add brand and engagement graphics, make face-led covers, and write platform copy. Optional cinema-screen texture keeps the layout intact. |
 
 ### Figma Social Carousel
 
@@ -66,6 +70,23 @@ The instructions use the [Agent Skills format](https://agentskills.io/specificat
 
 Use native Figma text and components when editable layers are required and the provider supports them. Finished PNG artwork can also be placed in Figma, with an editable source kept separately. Placed PNGs are flattened images; they do not satisfy a request for editable Figma layers.
 
+### Build Meme Reel
+
+A complete Reel package includes the video, compact animated Like → Comment → Follow prompts, four full-size covers, and platform copy. Covers always contain a human face and use blue, black, and white for their graphic treatment. The Instagram caption is one paragraph about the video's actual premise.
+
+```text
+Use $build-meme-reel with this clip and the caption "When the paid AI
+tokens run out and you switch to the free model." Keep the dialogue
+and pause intact. Add the optional cinema-screen texture without
+changing the picture size or position. Use our approved watermark,
+face-led covers in blue, black, and white, and one topical Instagram
+paragraph.
+```
+
+The cinema option treats the footage before assembly, so added type, branding, and engagement graphics stay crisp. Perspective, zoom, and handheld drift require a separate request.
+
+The [skill](skills/socials/build-meme-reel/SKILL.md) includes working render helpers and [cover/caption guidance](skills/socials/build-meme-reel/references/covers-and-copy.md). Source footage, faces, and brand marks stay in your own project. The repository supplies the workflow and original engagement artwork.
+
 ## Manual install for Codex
 
 Copy the whole skill folder so its references and assets stay together:
@@ -74,6 +95,7 @@ Copy the whole skill folder so its references and assets stay together:
 git clone https://github.com/dabarov/skills.git skills-collection
 mkdir -p ~/.agents/skills
 cp -R skills-collection/skills/socials/figma-social-carousel ~/.agents/skills/figma-social-carousel
+cp -R skills-collection/skills/socials/build-meme-reel ~/.agents/skills/build-meme-reel
 ```
 
 Use this for a first installation. If that destination already exists, update the existing copy deliberately. Codex loads personal skills from `~/.agents/skills`; see the [official guide](https://learn.chatgpt.com/docs/build-skills). If the skill does not appear, restart Codex.

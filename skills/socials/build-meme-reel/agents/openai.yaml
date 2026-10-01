@@ -1,0 +1,4 @@
+interface:
+  display_name: "Build Meme Reel"
+  short_description: "Make meme Reels with face-led covers and grounded captions"
+  default_prompt: "Use $build-meme-reel to create a branded Reel from my source footage, with animated engagement prompts, four face-led covers in blue, black, and white, and an Instagram caption written as one relevant paragraph."

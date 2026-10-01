@@ -31,6 +31,6 @@ From the repository root, run:
 python3 scripts/validate.py
 ```
 
-The checks validate the package. Also try a representative prompt in an agent with the tools the skill requires. For a visual workflow, inspect the exported slides at publishing size and at a phone-sized preview.
+The checks validate the package. Also try a representative prompt in an agent with the tools the skill requires. Inspect visual exports at publishing size and at phone size. For video helpers, verify duration, audio, frame rate, and the complete engagement sequence; compare optional effects against the clean layout.
 
 In the pull request, say what changed, why, and how you checked it. Note any parts you could not verify.

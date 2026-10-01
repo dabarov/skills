@@ -3,8 +3,8 @@
   "groupings": [
     {
       "title": "Socials",
-      "description": "Idea selection, writing, and design for social posts.",
-      "skills": ["figma-social-carousel"]
+      "description": "Carousels and meme Reels, from the idea to the finished post.",
+      "skills": ["figma-social-carousel", "build-meme-reel"]
     }
   ]
 }

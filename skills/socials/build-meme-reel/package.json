@@ -1,0 +1,13 @@
+{
+  "name": "build-meme-reel-tools",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Original engagement animation helpers for the Build Meme Reel skill",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.9.0"
+  },
+  "dependencies": {
+    "sharp": "0.35.5"
+  }
+}
