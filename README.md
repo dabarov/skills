@@ -38,7 +38,7 @@ This skill follows the decisions that usually take the most back and forth:
 The publishing limit is **10 slides total**, including the hook and call to action. Cut weaker material before adding slides.
 
 ```text
-Use figma-social-carousel to propose three carousel ideas for junior
+Use $figma-social-carousel to propose three carousel ideas for junior
 developers preparing for interviews. Choose the strongest idea, use
 one illustration library throughout, and keep the deck within 10 slides
 including the hook and final call to action. Put the result in Figma.
@@ -64,7 +64,7 @@ These are documented starting points from the workflow. Adapt them to the brief,
 
 The instructions use the [Agent Skills format](https://agentskills.io/specification). Figma delivery needs a connected tool that can **write to Figma**, plus any setup or skills required by that provider. Installing this folder does not install the Figma connection.
 
-The default workflow keeps content editable in the source layout and places exported PNGs in Figma. The placed PNGs are flattened images. If you need editable Figma text and components, request native Figma layers and use a provider that supports them.
+Use native Figma text and components when editable layers are required and the provider supports them. Finished PNG artwork can also be placed in Figma, with an editable source kept separately. Placed PNGs are flattened images; they do not satisfy a request for editable Figma layers.
 
 ## Manual install for Codex
 
