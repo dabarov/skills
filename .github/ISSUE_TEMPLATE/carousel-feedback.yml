@@ -1,0 +1,37 @@
+name: Carousel feedback
+description: Report a result that needs a better instruction or default.
+title: "[Carousel] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Share enough detail to reproduce the result. Remove private information and use public screenshots or an anonymized brief.
+  - type: textarea
+    id: prompt
+    attributes:
+      label: Prompt and brief
+      description: What did you ask the agent to create? Include relevant brand and audience constraints.
+    validations:
+      required: true
+  - type: input
+    id: setup
+    attributes:
+      label: Agent and Figma connection
+      description: Include the agent, skill version or commit, and the tool used to write to Figma.
+      placeholder: "Codex, commit abc1234, Figma write tool"
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Result and expected behavior
+      description: What happened, and what should have happened? Attach screenshots if the issue is visual.
+    validations:
+      required: true
+  - type: textarea
+    id: correction
+    attributes:
+      label: Correction that helped
+      description: If you found a useful instruction or layout change, include it here.
+    validations:
+      required: false

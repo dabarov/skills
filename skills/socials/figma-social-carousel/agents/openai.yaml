@@ -1,0 +1,4 @@
+interface:
+  display_name: "Figma Social Carousel"
+  short_description: "Research, design, and export useful social carousels"
+  default_prompt: "Use $figma-social-carousel to turn this topic into a researched social carousel in Figma with up to 10 slides and one clear call to action."
