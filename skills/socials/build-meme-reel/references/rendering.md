@@ -97,7 +97,7 @@ Use `--font /path/to/bold.ttf` to choose an installed brand font. The helper tri
 
 Headlines are uppercase and limited to two explicit lines. They are not automatically wrapped. Use a shorter provisional headline or intentional line breaks. Exact copy may need `--font-size` or `--title-y` adjustment, followed by inspection. Reject clipping; do not hide it by reducing type below readable size.
 
-`--captions-json` replaces the static title for a single clip. Its list uses output-relative `start`, `end`, `text`, and optional `font_size` and `y`. Ends are exclusive; gaps remain free of captions. Use only when the user requests timed text.
+`--captions-json` replaces the static title for a single clip. Its list uses output-relative `start`, `end`, `text`, and optional `font_size` and `y`. Ends are exclusive; gaps remain free of captions. Use only when the user requests a timed headline. For dialogue beneath the headline, use additive `--subtitles-json` and read [subtitles.md](subtitles.md).
 
 ```json
 [
@@ -108,7 +108,7 @@ Headlines are uppercase and limited to two explicit lines. They are not automati
 
 Watermark position can change with `--watermark-corner`, `--watermark-width`, and `--watermark-margin`. CTA position can change with `--cta-x`, `--cta-y`, and `--cta-width`. Defaults target the 1080 × 1920 layout; recheck all coordinates after a canvas change.
 
-`--preview-dir` exports representative scenes, timed-caption states when applicable, and all three CTA states. Inspect them and watch the video with audio. Preview creation is not a substitute for playback. Confirm H.264/AAC, dimensions, frame rate, duration, watermark, and full engagement sequence before handoff.
+`--preview-dir` exports representative scenes, timed-caption states when applicable, subtitle cues when supplied, and all three CTA states. Inspect them and watch the video with audio. Preview creation is not a substitute for playback. Confirm H.264/AAC, dimensions, frame rate, duration, watermark, subtitles, and full engagement sequence before handoff.
 
 ## Verify the installed helpers
 

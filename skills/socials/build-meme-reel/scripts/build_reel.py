@@ -18,6 +18,8 @@ from pathlib import Path
 SKILL_ROOT = Path(__file__).resolve().parent.parent
 CTA_ASSETS = SKILL_ROOT / "generated" / "engagement"
 TITLE_BOX_PADDING = 28
+SUBTITLE_BOX_PADDING = 12
+SUBTITLE_OUTLINE = 3
 
 # A quality treatment on the source only. It never changes crop, geometry,
 # framing, output resolution, title, watermark, or engagement graphics.
@@ -164,6 +166,20 @@ def measure_text(font: Path, text_file: Path, size: int) -> tuple[float, float]:
     return float(values[0]), float(values[1])
 
 
+def subtitle_srt(cues: list[dict]) -> str:
+    """Export the same output-relative cues used by the burned dialogue layer."""
+    def timestamp(seconds: float) -> str:
+        milliseconds = round(seconds * 1000)
+        hours, milliseconds = divmod(milliseconds, 3600000)
+        minutes, milliseconds = divmod(milliseconds, 60000)
+        seconds, milliseconds = divmod(milliseconds, 1000)
+        return f"{hours:02}:{minutes:02}:{seconds:02},{milliseconds:03}"
+    return "".join(
+        f"{index}\n{timestamp(cue['start'])} --> {timestamp(cue['end'])}\n{cue['text']}\n\n"
+        for index, cue in enumerate(cues, start=1)
+    )
+
+
 def even(value: float) -> int:
     result = int(round(value))
     return result if result % 2 == 0 else result - 1
@@ -195,6 +211,13 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--end-a")
     result.add_argument("--title-a")
     result.add_argument("--captions-json", type=Path, help="Single-clip timed captions; replaces --title-a")
+    result.add_argument(
+        "--subtitles-json", type=Path,
+        help="Add dialogue subtitles below the headline; start/end seconds are relative to the complete trimmed output",
+    )
+    result.add_argument("--subtitle-font-size", type=int, help="Dialogue type size (default: 46 px at 1080 px canvas width)")
+    result.add_argument("--subtitle-y", type=int, help="Dialogue text top edge (default: 64 px above the sharp footage bottom)")
+    result.add_argument("--subtitle-max-width", type=int, help="Maximum subtitle box width including padding (default: 840 px at 1080 px canvas width)")
     result.add_argument("--clip-b", type=Path)
     result.add_argument("--start-b", default="0")
     result.add_argument("--end-b")
@@ -252,6 +275,7 @@ def main() -> None:
     clip_a = args.clip_a.expanduser().resolve()
     clip_b = args.clip_b.expanduser().resolve() if args.clip_b else None
     output = args.output.expanduser().resolve()
+    subtitle_sidecar = output.with_suffix(".srt") if args.subtitles_json else None
     if bool(clip_b) != bool(args.title_b):
         die("Pass --clip-b and --title-b together, or omit both for a single-clip Reel")
     if clip_b is None and (args.start_b != "0" or args.end_b is not None):
@@ -286,10 +310,14 @@ def main() -> None:
     for source in sources:
         if not source.is_file():
             die(f"Source file not found: {source}")
-    if output in sources or output == watermark_path or output == cta_path:
+    protected_paths = sources + [watermark_path, cta_path]
+    protected_paths += [path.expanduser().resolve() for path in (args.captions_json, args.subtitles_json) if path]
+    if output in protected_paths or (subtitle_sidecar is not None and subtitle_sidecar in protected_paths):
         die("Output must not overwrite a source file")
     if output.exists() and not args.overwrite:
         die(f"Output already exists; pass --overwrite to replace it: {output}")
+    if subtitle_sidecar is not None and subtitle_sidecar.exists() and not args.overwrite:
+        die(f"Subtitle sidecar already exists; pass --overwrite to replace it: {subtitle_sidecar}")
 
     meta_a = probe(clip_a)
     require_media_streams(meta_a, clip_a)
@@ -388,10 +416,63 @@ def main() -> None:
                 die("Timed caption must fit in the safe area above the main clip")
             caption.update(start=start, end=end, font_size=size, y=y)
             previous_end = end
+    subtitles = []
+    subtitle_size = args.subtitle_font_size if args.subtitle_font_size is not None else round(46 * args.canvas_width / 1080)
+    subtitle_y = args.subtitle_y if args.subtitle_y is not None else main_y + main_height - round(64 * args.canvas_height / 1920)
+    subtitle_max_width = args.subtitle_max_width if args.subtitle_max_width is not None else round(840 * args.canvas_width / 1080)
+    subtitle_padding = max(1, round(SUBTITLE_BOX_PADDING * args.canvas_width / 1080))
+    subtitle_outline = max(1, round(SUBTITLE_OUTLINE * args.canvas_width / 1080))
+    if args.subtitles_json:
+        if subtitle_size < 24:
+            die("Subtitle font size is too small for a social video; use at least 24 px")
+        if subtitle_max_width <= 2 * subtitle_padding or subtitle_max_width > args.canvas_width:
+            die("Subtitle maximum width must fit inside the canvas and allow padding")
+        try:
+            subtitles = json.loads(args.subtitles_json.expanduser().read_text(encoding="utf-8"))
+        except (OSError, ValueError) as error:
+            die(f"Cannot read subtitle JSON: {error}")
+        if not isinstance(subtitles, list) or not subtitles:
+            die("Subtitle JSON must be a non-empty list")
+        previous_end = 0.0
+        for subtitle_index, subtitle in enumerate(subtitles, start=1):
+            if not isinstance(subtitle, dict):
+                die(f"Subtitle {subtitle_index} must be an object with start, end, and text")
+            try:
+                start, end = float(subtitle["start"]), float(subtitle["end"])
+                text = subtitle["text"]
+            except (KeyError, TypeError, ValueError):
+                die(f"Subtitle {subtitle_index} requires numeric start/end and text")
+            if not (math.isfinite(start) and math.isfinite(end) and previous_end <= start < end <= duration_a + duration_b):
+                die("Subtitles must be ordered, non-overlapping and within the complete trimmed output")
+            if round(start * 1000) >= round(end * 1000):
+                die(f"Subtitle {subtitle_index} must span at least one millisecond for its SRT sidecar")
+            if not isinstance(text, str):
+                die(f"Subtitle {subtitle_index} text must be a string")
+            lines = text.splitlines()
+            if not 1 <= len(lines) <= 2 or any(not line.strip() for line in lines):
+                die("Dialogue subtitles require one or two non-empty lines")
+            if len(lines) == 2 and args.subtitle_y is None:
+                die("Two-line subtitles require an explicit --subtitle-y with room for both lines")
+            # Global placement and type keep all dialogue cues consistent. The
+            # input supplies only output-relative timings and verbatim dialogue.
+            subtitles[subtitle_index - 1] = {"start": start, "end": end, "text": text}
+            previous_end = end
+    elif any(value is not None for value in (args.subtitle_font_size, args.subtitle_y, args.subtitle_max_width)):
+        die("Subtitle layout options require --subtitles-json")
     output.parent.mkdir(parents=True, exist_ok=True)
 
     with tempfile.TemporaryDirectory(prefix="build-meme-reel-") as temporary:
         temporary_path = Path(temporary)
+        protected_regions = []
+
+        def add_protected_region(label: str, bounds: tuple[float, float, float, float], start: float, end: float) -> None:
+            protected_regions.append({"label": label, "bounds": bounds, "start": start, "end": end})
+
+        if watermark_path:
+            add_protected_region("watermark", (watermark_x, watermark_y, args.watermark_width, watermark_height), 0, duration_a + duration_b)
+        if cta_path:
+            add_protected_region("active CTA", (cta_x, cta_y, cta_width, cta_height), cta_start, cta_end)
+
         def write_title_files(prefix: str, title: str) -> list[Path]:
             lines = [line.strip() for line in title.upper().splitlines() if line.strip()]
             if not lines:
@@ -410,6 +491,13 @@ def main() -> None:
                         "Add a line break, reduce --font-size, or choose a suitable --font."
                     )
                 line_y = title_y + line_number * (args.font_size + 20)
+                add_protected_region(
+                    f"headline {prefix.upper()}",
+                    ((args.canvas_width - width) / 2 - TITLE_BOX_PADDING, line_y - TITLE_BOX_PADDING,
+                     width + 2 * TITLE_BOX_PADDING, height + 2 * TITLE_BOX_PADDING),
+                    0 if prefix == "a" else duration_a,
+                    duration_a if prefix == "a" else duration_a + duration_b,
+                )
                 if line_y + height + TITLE_BOX_PADDING > main_y:
                     die(
                         f"Title {prefix.upper()} line {line_number + 1} overlaps the main footage. "
@@ -419,6 +507,71 @@ def main() -> None:
 
         title_a_files = write_title_files("a", args.title_a) if args.title_a else []
         title_b_files = write_title_files("b", args.title_b) if args.title_b else []
+        caption_files = []
+        for caption_index, caption in enumerate(captions):
+            files = []
+            for line_number, line in enumerate(caption["text"].splitlines()):
+                caption_file = temporary_path / f"caption-{caption_index}-{line_number}.txt"
+                caption_file.write_text(line, encoding="utf-8")
+                width, height = measure_text(font, caption_file, caption["font_size"])
+                if width + 2 * TITLE_BOX_PADDING > args.canvas_width:
+                    die(
+                        f"Timed caption {caption_index + 1} line {line_number + 1} is too wide ({width:.0f} px). "
+                        "Add a line break, reduce its font_size, or choose a suitable --font."
+                    )
+                line_y = caption["y"] + line_number * (caption["font_size"] + 20)
+                add_protected_region(
+                    f"timed headline {caption_index + 1}",
+                    ((args.canvas_width - width) / 2 - TITLE_BOX_PADDING, line_y - TITLE_BOX_PADDING,
+                     width + 2 * TITLE_BOX_PADDING, height + 2 * TITLE_BOX_PADDING),
+                    caption["start"], caption["end"],
+                )
+                files.append(caption_file)
+            caption_files.append(files)
+
+        subtitle_files = []
+        safe_left = round(72 * args.canvas_width / 1080)
+        safe_top = round(180 * args.canvas_height / 1920)
+        safe_bottom = args.canvas_height - round(380 * args.canvas_height / 1920)
+        subtitle_line_step = subtitle_size + round(10 * args.canvas_width / 1080)
+
+        def rectangles_overlap(left: tuple[float, float, float, float], right: tuple[float, float, float, float]) -> bool:
+            x1, y1, w1, h1 = left
+            x2, y2, w2, h2 = right
+            return x1 < x2 + w2 and x2 < x1 + w1 and y1 < y2 + h2 and y2 < y1 + h1
+
+        for subtitle_index, subtitle in enumerate(subtitles):
+            files = []
+            boxes = []
+            for line_number, line in enumerate(subtitle["text"].splitlines()):
+                subtitle_file = temporary_path / f"subtitle-{subtitle_index}-{line_number}.txt"
+                subtitle_file.write_text(line.strip(), encoding="utf-8")
+                width, height = measure_text(font, subtitle_file, subtitle_size)
+                box = ((args.canvas_width - width) / 2 - subtitle_padding,
+                       subtitle_y + line_number * subtitle_line_step - subtitle_padding,
+                       width + 2 * subtitle_padding, height + 2 * subtitle_padding)
+                if box[2] > subtitle_max_width:
+                    die(
+                        f"Subtitle {subtitle_index + 1} line {line_number + 1} is too wide ({box[2]:.0f} px including padding). "
+                        "Split the dialogue into shorter timed cues or use an explicit two-line layout."
+                    )
+                if (box[0] < safe_left or box[0] + box[2] > args.canvas_width - safe_left
+                        or box[1] < safe_top or box[1] + box[3] > safe_bottom):
+                    die(
+                        f"Subtitle {subtitle_index + 1} leaves the subtitle safe area. "
+                        "Adjust --subtitle-y, shorten the cue, or reduce --subtitle-font-size."
+                    )
+                for region in protected_regions:
+                    if (subtitle["start"] < region["end"] and region["start"] < subtitle["end"]
+                            and rectangles_overlap(box, region["bounds"])):
+                        die(
+                            f"Subtitle {subtitle_index + 1} overlaps the {region['label']}. "
+                            "Adjust --subtitle-y or the asset placement; keep the full headline, watermark, and CTA."
+                        )
+                files.append(subtitle_file)
+                boxes.append({"x": round(box[0], 2), "y": box[1], "width": box[2], "height": box[3]})
+            subtitle["boxes"] = boxes
+            subtitle_files.append(files)
 
         def video_chain(index: int, prefix: str, title_files: list[Path]) -> str:
             effect = CINEMA_FILTER + "," if args.footage_effect == "cinema" else ""
@@ -441,14 +594,7 @@ def main() -> None:
                 )
             for caption_index, caption in enumerate(captions):
                 for line_number, line in enumerate(caption["text"].splitlines()):
-                    caption_file = temporary_path / f"caption-{caption_index}-{line_number}.txt"
-                    caption_file.write_text(line, encoding="utf-8")
-                    width, _ = measure_text(font, caption_file, caption["font_size"])
-                    if width + 2 * TITLE_BOX_PADDING > args.canvas_width:
-                        die(
-                            f"Timed caption {caption_index + 1} line {line_number + 1} is too wide ({width:.0f} px). "
-                            "Add a line break, reduce its font_size, or choose a suitable --font."
-                        )
+                    caption_file = caption_files[caption_index][line_number]
                     line_y = caption["y"] + line_number * (caption["font_size"] + 20)
                     chain += (
                         f",drawtext=fontfile={filter_quote(font)}:textfile={filter_quote(caption_file)}:"
@@ -481,12 +627,26 @@ def main() -> None:
             )
 
         overlay_base = "vbase"
+        if subtitles:
+            filters += ";[vbase]"
+            subtitle_draws = []
+            for subtitle_index, subtitle in enumerate(subtitles):
+                for line_number, subtitle_file in enumerate(subtitle_files[subtitle_index]):
+                    line_y = subtitle_y + line_number * subtitle_line_step
+                    subtitle_draws.append(
+                        f"drawtext=fontfile={filter_quote(font)}:textfile={filter_quote(subtitle_file)}:"
+                        f"expansion=none:fontcolor=white:fontsize={subtitle_size}:x=(w-text_w)/2:y={line_y}:"
+                        f"borderw={subtitle_outline}:bordercolor=black:box=1:boxcolor=black@0.62:boxborderw={subtitle_padding}:"
+                        f"enable='gte(t,{subtitle['start']:.6f})*lt(t,{subtitle['end']:.6f})'"
+                    )
+            filters += ",".join(subtitle_draws) + "[vsubtitled]"
+            overlay_base = "vsubtitled"
         if watermark_path:
             watermark_index = len(sources)
             filters += (
                 f";[{watermark_index}:v]setpts=PTS-STARTPTS,fps={args.fps},"
                 f"scale={args.watermark_width}:{watermark_height}:flags=lanczos,format=rgba,setsar=1[watermark];"
-                f"[vbase][watermark]overlay=x={watermark_x}:y={watermark_y}:"
+                f"[{overlay_base}][watermark]overlay=x={watermark_x}:y={watermark_y}:"
                 "shortest=1:alpha=straight[vmarked]"
             )
             overlay_base = "vmarked"
@@ -567,6 +727,8 @@ def main() -> None:
             print(json.dumps(command, indent=2))
             return
         run(command)
+        if subtitle_sidecar is not None:
+            subtitle_sidecar.write_text(subtitle_srt(subtitles), encoding="utf-8")
 
     finished = probe(output)
     video = next(stream for stream in finished["streams"] if stream.get("codec_type") == "video")
@@ -587,6 +749,18 @@ def main() -> None:
             "sample_rate": audio.get("sample_rate"),
             "channels": audio.get("channels"),
         },
+        "subtitles": {
+            "source": str(args.subtitles_json.expanduser().resolve()),
+            "srt": str(subtitle_sidecar),
+            "timing": "complete trimmed output",
+            "font_size": subtitle_size,
+            "text_y": subtitle_y,
+            "max_box_width": subtitle_max_width,
+            "box_padding": subtitle_padding,
+            "outline": subtitle_outline,
+            "safe_area": {"left": safe_left, "right": args.canvas_width - safe_left, "top": safe_top, "bottom": safe_bottom},
+            "cues": subtitles,
+        } if subtitles else None,
         "watermark": {
             "source": str(watermark_path),
             "width": args.watermark_width,
@@ -619,6 +793,9 @@ def main() -> None:
         if captions:
             preview_times = [(caption["start"] + caption["end"]) / 2 for caption in captions]
             labels = [f"caption-{i + 1}" for i in range(len(captions))]
+        if subtitles:
+            preview_times.extend((subtitle["start"] + subtitle["end"]) / 2 for subtitle in subtitles)
+            labels.extend(f"subtitle-{i + 1}" for i in range(len(subtitles)))
         if clip_b:
             preview_times.append(duration_a + min(2.0, duration_b / 2))
             labels.append("second")

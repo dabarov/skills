@@ -1,6 +1,6 @@
 ---
 name: build-meme-reel
-description: Create or repair social meme Reels from source clips, with optional cinema-screen texture, animated engagement prompts, face-led covers, and platform captions. Use for footage-based memes, not general promotional videos or carousels.
+description: Create or repair social meme Reels from source clips, with dialogue subtitles, optional cinema-screen texture, animated engagement prompts, face-led covers, and platform captions. Use for footage-based memes, not general promotional videos or carousels.
 ---
 
 # Build Meme Reel
@@ -12,6 +12,7 @@ Turn a specific scene and joke into a complete social package. Preserve dialogue
 A new Reel includes:
 
 - A finished vertical MP4 with the approved brand watermark and compact animated Like → Comment → Follow sequence. Use Subscribe for YouTube.
+- Readable dialogue subtitles burned into each platform version, with matching SRT and timing data. Omit them when the user requests a subtitle-free version or the scene contains no speech.
 - Four separate full-size covers: TikTok, Instagram Reel, YouTube Shorts, and a landscape YouTube thumbnail.
 - Platform copy saved with the covers. Instagram gets one connected paragraph grounded in this video's premise.
 - Preview images and render details so the result can be checked.
@@ -26,7 +27,7 @@ Inspect the supplied media, including its audio, before choosing the cut or writ
 
 Identify the setup, recognition moment, and payoff. Preserve the beginning of a question, the response, and any intentional pause. For a comparison, keep each beat legible and use a hard cut unless the user asks for another transition.
 
-Keep prescribed wording intact apart from requested corrections. Tighten provisional wording into one clear sentence, normally no more than two lines. Do not add extra narration, music, meme labels, or subtitles by default.
+Keep prescribed wording intact apart from requested corrections. Tighten provisional wording into one clear sentence, normally no more than two lines. Do not add extra narration, music, or meme labels by default.
 
 ## Assemble the Reel
 
@@ -47,6 +48,12 @@ Use the project's approved animated watermark. For RecallDeck, use the mascot wi
 Include the complete compact engagement sequence once during the video. Use translucent pills, an arrow cursor, and pressed states: Like → Liked, Comment → Commented, Follow → Following. Keep the pill centered through label changes. It contains no mascot. Default to the tap style; use quiet or a single action only when requested.
 
 The sequence lasts 8.4 seconds and must finish at least one second before the video ends. Try an earlier start for short clips. If a hard runtime is absent, a disclosed final-frame hold with silent audio padding can make room; never stretch dialogue, loop the joke, shorten the sequence, or omit it silently. If runtime is fixed and the sequence cannot fit, report the conflict.
+
+## Dialogue subtitles
+
+Add verified dialogue subtitles to spoken scenes. Use short phrases in bold white type with a dark outline and translucent backing. Keep them separate from the headline, approved watermark, engagement animation, and the faces carrying the joke. Leave an intentional silent pause free of subtitle text.
+
+Read [subtitles.md](references/subtitles.md) before transcribing or placing them. The helper's `--subtitles-json` adds dialogue without replacing the headline. Check phone-size readability and the intended platforms' visible controls; a fixed safe-area rectangle alone is not a platform preview.
 
 ## Optional cinema-screen treatment
 
@@ -70,6 +77,7 @@ Write Instagram copy as **one paragraph** about the on-video caption, scene, and
 
 - Watch the cut with sound. Check the start, payoff, pause, and ending; preserve the intended audio sync.
 - Inspect the headline, sharp footage, watermark, and each of the three CTA states. Check that text stays inside its box and the sequence finishes in time.
+- Inspect every subtitle cue with the assets active, including the longest phrase and payoff. Check wording, timing, visible bounds, and phone-size readability. Confirm the matching SRT uses the finished video's timeline.
 - For cinema exports, compare against the clean layout. Confirm only footage quality changed.
 - Open all four cover files at full resolution and at phone size. Verify a visible face, the blue/black/white treatment, readable text, exact branding, and dimensions.
 - Read the Instagram paragraph alongside the on-video headline. If it could accompany an unrelated meme unchanged, rewrite it.

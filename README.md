@@ -28,7 +28,7 @@ npx skills@latest add dabarov/skills --list
 | Skill | What it does |
 | --- | --- |
 | [Figma Social Carousel](skills/socials/figma-social-carousel/SKILL.md) | Research and select an idea, write up to 10 slides, use one visual system, review the result, and deliver it to Figma. |
-| [Build Meme Reel](skills/socials/build-meme-reel/SKILL.md) | Cut the joke, add brand and engagement graphics, make face-led covers, and write platform copy. Optional cinema-screen texture keeps the layout intact. |
+| [Build Meme Reel](skills/socials/build-meme-reel/SKILL.md) | Cut the joke, add dialogue subtitles, brand and engagement graphics, make face-led covers, and write platform copy. Optional cinema-screen texture keeps the layout intact. |
 
 ### Figma Social Carousel
 
@@ -72,7 +72,7 @@ Use native Figma text and components when editable layers are required and the p
 
 ### Build Meme Reel
 
-A complete Reel package includes the video, compact animated Like → Comment → Follow prompts, four full-size covers, and platform copy. Covers always contain a human face and use blue, black, and white for their graphic treatment. The Instagram caption is one paragraph about the video's actual premise.
+A complete Reel package includes the video with dialogue subtitles, compact animated Like → Comment → Follow prompts, four full-size covers, and platform copy. Subtitles stay clear of the headline, watermark, and engagement animation. Covers always contain a human face and use blue, black, and white for their graphic treatment. The Instagram caption is one paragraph about the video's actual premise.
 
 ```text
 Use $build-meme-reel with this clip and the caption "When the paid AI

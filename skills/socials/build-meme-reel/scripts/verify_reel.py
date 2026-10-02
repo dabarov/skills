@@ -68,6 +68,20 @@ def verify_audio(root: Path) -> dict:
     }
 
 
+def subtitle_region(path: Path, at: float) -> bytes:
+    return subprocess.run([
+        "ffmpeg", "-hide_banner", "-loglevel", "error", "-ss", str(at), "-i", str(path),
+        "-frames:v", "1", "-vf", "crop=840:90:120:1155,format=gray", "-f", "rawvideo", "-",
+    ], capture_output=True, check=True).stdout
+
+
+def subtitle_difference(root: Path, at: float) -> float:
+    plain = subtitle_region(root / "clean.mp4", at)
+    subtitled = subtitle_region(root / "subtitled.mp4", at)
+    assert len(plain) == len(subtitled) == 840 * 90
+    return sum(abs(a - b) for a, b in zip(plain, subtitled)) / len(plain)
+
+
 def verify(root: Path) -> dict:
     root.mkdir(parents=True, exist_ok=True)
     source = root / "source-a.mp4"
@@ -97,14 +111,27 @@ def verify(root: Path) -> dict:
         "--clip-a", str(source), "--watermark", str(watermark),
         "--cta-dir", str(cta_dir), "--preset", "ultrafast",
     ]
+    subtitle_cues = [
+        {"start": 0.4, "end": 1.4, "text": "Right, I know this."},
+        {"start": 6.4, "end": 8, "text": "My name is Jeff."},
+    ]
+    subtitles = root / "dialogue.json"
+    subtitles.write_text(json.dumps(subtitle_cues), encoding="utf-8")
+    timed_headlines = root / "timed-headlines.json"
+    timed_headlines.write_text(json.dumps([
+        {"start": 0, "end": 6, "text": "THE SETUP"},
+        {"start": 6, "end": 12, "text": "THE PUNCHLINE"},
+    ]), encoding="utf-8")
     reports = {}
     variants = {
         "clean": ["--title-a", "SYNTHETIC\n100% TEST"],
         "cinema": ["--title-a", "SYNTHETIC\n100% TEST", "--footage-effect", "cinema"],
         "comparison": [
             "--end-a", "6", "--title-a", "THE SETUP", "--clip-b", str(source_b),
-            "--title-b", "THE PUNCHLINE", "--footage-effect", "cinema",
+            "--title-b", "THE PUNCHLINE", "--footage-effect", "cinema", "--subtitles-json", str(subtitles),
         ],
+        "subtitled": ["--title-a", "SYNTHETIC\n100% TEST", "--subtitles-json", str(subtitles)],
+        "timed-headlines-subtitled": ["--captions-json", str(timed_headlines), "--subtitles-json", str(subtitles)],
     }
     for name, options in variants.items():
         output = root / f"{name}.mp4"
@@ -119,7 +146,18 @@ def verify(root: Path) -> dict:
         assert summary["cta"]["action"] == "sequence", summary
         assert math.isclose(summary["cta"]["duration"], 8.4, abs_tol=0.05), summary
         assert summary["cta"]["end"] <= summary["duration"] - 1, summary
-        assert len(summary["previews"]) == (5 if name == "comparison" else 4), summary
+        expected_previews = {"comparison": 7, "subtitled": 6, "timed-headlines-subtitled": 7}.get(name, 4)
+        assert len(summary["previews"]) == expected_previews, summary
+        if "subtitles-json" in " ".join(options):
+            assert summary["subtitles"]["timing"] == "complete trimmed output", summary
+            for cue, expected in zip(summary["subtitles"]["cues"], subtitle_cues):
+                assert all(cue[key] == expected[key] for key in ("start", "end", "text")), cue
+            assert len(summary["subtitles"]["cues"]) == 2, summary
+            srt = Path(summary["subtitles"]["srt"]).read_text(encoding="utf-8")
+            assert srt == (
+                "1\n00:00:00,400 --> 00:00:01,400\nRight, I know this.\n\n"
+                "2\n00:00:06,400 --> 00:00:08,000\nMy name is Jeff.\n\n"
+            ), srt
         reports[name] = summary
 
     rejection_output = ["--output", str(root / "should-not-exist.mp4"), "--dry-run"]
@@ -132,6 +170,32 @@ def verify(root: Path) -> dict:
     long_caption.write_text(json.dumps([{"start": 0, "end": 12, "text": "A" * 100}]), encoding="utf-8")
     run(base + ["--captions-json", str(long_caption)] + rejection_output, expect_failure="Timed caption 1 line 1 is too wide")
     run(base + ["--title-a", "TEST", "--cta-dir", str(root / "missing")] + rejection_output, expect_failure="npm ci --prefix")
+    subtitle_base = base + ["--title-a", "SYNTHETIC\n100% TEST", "--subtitles-json", str(subtitles)]
+    run(subtitle_base + ["--subtitle-y", "520"] + rejection_output, expect_failure="overlaps the headline")
+    run(subtitle_base + ["--subtitle-y", "1100"] + rejection_output, expect_failure="overlaps the watermark")
+    run(subtitle_base + ["--subtitle-y", "1300"] + rejection_output, expect_failure="overlaps the active CTA")
+    run(subtitle_base + ["--subtitle-y", "1520"] + rejection_output, expect_failure="leaves the subtitle safe area")
+    invalid_subtitles = root / "invalid-dialogue.json"
+    for cues, expected in (
+        ([{"start": 0, "end": 13, "text": "Too late."}], "within the complete trimmed output"),
+        ([{"start": 1, "end": 3, "text": "First."}, {"start": 2, "end": 4, "text": "Overlap."}], "non-overlapping"),
+        ([{"start": 0, "end": 1, "text": "A" * 100}], "is too wide"),
+        ([{"start": 0, "end": 1, "text": "Line one.\nLine two."}], "explicit --subtitle-y"),
+        ([{"start": 0, "end": 1, "text": "One.\nTwo.\nThree."}], "one or two non-empty lines"),
+        ([{"start": 0, "end": 1}], "requires numeric start/end and text"),
+    ):
+        invalid_subtitles.write_text(json.dumps(cues), encoding="utf-8")
+        run(base + ["--title-a", "TEST", "--subtitles-json", str(invalid_subtitles)] + rejection_output, expect_failure=expected)
+    existing_sidecar = root / "should-not-exist.srt"
+    existing_sidecar.write_text("KEEP THIS SIDECAR", encoding="utf-8")
+    run(subtitle_base + rejection_output, expect_failure="Subtitle sidecar already exists")
+    assert existing_sidecar.read_text(encoding="utf-8") == "KEEP THIS SIDECAR"
+    existing_sidecar.unlink()
+    # Spatially identical to the CTA, but the cue ends before the prompt begins.
+    # This should be allowed, showing collision checks respect output timing.
+    invalid_subtitles.write_text(json.dumps([{"start": 0.4, "end": 1.4, "text": "Before the prompt."}]), encoding="utf-8")
+    run(base + ["--title-a", "TEST", "--subtitles-json", str(invalid_subtitles), "--subtitle-y", "1300"] + rejection_output)
+    run(base + ["--title-a", "TEST", "--subtitle-y", "1172"] + rejection_output, expect_failure="require --subtitles-json")
     nonsquare = root / "non-square-source.mp4"
     run([
         "ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(source),
@@ -167,7 +231,38 @@ def verify(root: Path) -> dict:
     cinema_glyphs = white_glyph_positions(frames["cinema"])
     overlap = len(clean_glyphs & cinema_glyphs) / max(1, len(clean_glyphs | cinema_glyphs))
     assert overlap > 0.95, f"Headline geometry changed: {overlap:.3f} overlap"
+    active_difference = subtitle_difference(root, 0.8)
+    before_difference = subtitle_difference(root, 0.1)
+    after_difference = subtitle_difference(root, 2)
+    assert active_difference > 8, f"Dialogue was not visibly rendered: {active_difference:.2f}"
+    assert before_difference < 1 and after_difference < 1, (before_difference, after_difference)
+    assert decode_audio(root / "clean.mp4") == decode_audio(root / "subtitled.mp4"), "Subtitles changed dialogue audio"
+    # Matching white glyphs over each cue's dark box prove the second cue is
+    # rendered on clip B at the complete-output time, after the six-second cut.
+    single = subtitle_region(root / "subtitled.mp4", 6.8)
+    comparison = subtitle_region(root / "comparison.mp4", 6.8)
+    cue_box = reports["comparison"]["subtitles"]["cues"][1]["boxes"][0]
+    def glyph_positions(frame: bytes) -> set[int]:
+        return {
+            y * 840 + x
+            for y in range(math.ceil(cue_box["y"] - 1155), math.floor(cue_box["y"] + cue_box["height"] - 1155))
+            for x in range(math.ceil(cue_box["x"] - 120), math.floor(cue_box["x"] + cue_box["width"] - 120))
+            if frame[y * 840 + x] > 230
+        }
+    single_glyphs, comparison_glyphs = glyph_positions(single), glyph_positions(comparison)
+    subtitle_overlap = len(single_glyphs & comparison_glyphs) / max(1, len(single_glyphs | comparison_glyphs))
+    assert len(comparison_glyphs) > 500 and subtitle_overlap > 0.95, subtitle_overlap
     reports["checks"] = {
+        "additive_subtitles_preserve_audio": True,
+        "subtitles_with_static_and_timed_headlines": True,
+        "subtitle_output_timing_after_two_source_cut": True,
+        "subtitle_two_source_glyph_overlap": round(subtitle_overlap, 4),
+        "matching_srt_sidecars": True, "existing_srt_preserved_without_overwrite": True,
+        "subtitle_cue_pixel_difference": round(active_difference, 2),
+        "subtitles_absent_before_and_after_cue": True,
+        "subtitle_headline_watermark_cta_collisions_rejected": True,
+        "subtitle_safe_area_and_width_checked": True,
+        "subtitle_nonactive_cta_region_allowed": True,
         "synthetic_sources": True, "quality_only_headline_overlap": round(overlap, 4),
         "rejected_short_clip": True, "rejected_odd_canvas": True,
         "rejected_nonpositive_fps": True, "rejected_headline_overlap": True,
